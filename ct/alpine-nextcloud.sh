@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Because whoever made the original fucked it up.
+# whats up
 
 source /dev/stdin <<< "$FUNCTIONS_FILE_PATH"
 color
