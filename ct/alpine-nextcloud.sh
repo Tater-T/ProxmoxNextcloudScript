@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
-# whats up
+# Copyright (c) 2021-2025 tteck
+# Author: tteck (tteckster)
+# License: MIT | https://github.com/community-scripts/ProxmoxVE/raw/main/LICENSE
+# Source: https://nextcloud.com/
 
 source /dev/stdin <<< "$FUNCTIONS_FILE_PATH"
 color
@@ -9,6 +12,11 @@ catch_errors
 setting_up_container
 network_check
 update_os
+
+# Detect PHP version
+PHP_VER=$(apk search -qx php | grep -E '^php[0-9]+$' | sort -Vr | head -1)
+PHP_NUM=${PHP_VER//[!0-9]/}
+echo "Detected PHP version: $PHP_VER ($PHP_NUM)"
 
 msg_info "Installing Dependencies"
 $STD apk add newt
@@ -21,18 +29,18 @@ $STD apk add nginx
 msg_ok "Installed Dependencies"
 
 msg_info "Installing PHP/Redis"
-$STD apk add php83-opcache
-$STD apk add php83-redis
-$STD apk add php83-apcu
-$STD apk add php83-fpm
-$STD apk add php83-sysvsem
-$STD apk add php83-ftp
-$STD apk add php83-pecl-smbclient
-$STD apk add php83-pecl-imagick
-$STD apk add php83-pecl-vips
-$STD apk add php83-exif
-$STD apk add php83-sodium
-$STD apk add php83-bz2
+$STD apk add php${PHP_NUM}-opcache
+$STD apk add php${PHP_NUM}-redis
+$STD apk add php${PHP_NUM}-apcu
+$STD apk add php${PHP_NUM}-fpm
+$STD apk add php${PHP_NUM}-sysvsem
+$STD apk add php${PHP_NUM}-ftp
+$STD apk add php${PHP_NUM}-pecl-smbclient
+$STD apk add php${PHP_NUM}-pecl-imagick
+$STD apk add php${PHP_NUM}-pecl-vips
+$STD apk add php${PHP_NUM}-exif
+$STD apk add php${PHP_NUM}-sodium
+$STD apk add php${PHP_NUM}-bz2
 $STD apk add redis
 msg_ok "Installed PHP/Redis"
 
@@ -148,10 +156,10 @@ server {
 EOF
 
 # Create the conf directory if it doesn't exist
-mkdir -p /etc/php83/php-fpm.d
+mkdir -p /etc/php${PHP_NUM}/php-fpm.d
 
 # Create the nextcloud.conf file before trying to modify it
-cat <<'EOF' > /etc/php83/php-fpm.d/nextcloud.conf
+cat <<'EOF' > /etc/php${PHP_NUM}/php-fpm.d/nextcloud.conf
 [nextcloud]
 php_admin_value[opcache.enable]=1
 php_admin_value[opcache.enable_cli]=1
@@ -162,9 +170,9 @@ php_admin_value[opcache.save_comments]=1
 php_admin_value[opcache.revalidate_freq]=1
 EOF
 
-sed -i -e 's|memory_limit = 128M|memory_limit = 512M|; $aapc.enable_cli=1' /etc/php83/php.ini
-sed -i -e 's|upload_max_file_size = 2M|upload_max_file_size = 16G|' /etc/php83/php.ini
-sed -i -E '/^php_admin_(flag|value)\[opcache/s/^/;/' /etc/php83/php-fpm.d/nextcloud.conf
+sed -i -e "s|memory_limit = 128M|memory_limit = 512M|; \$aapc.enable_cli=1" /etc/php${PHP_NUM}/php.ini
+sed -i -e "s|upload_max_file_size = 2M|upload_max_file_size = 16G|" /etc/php${PHP_NUM}/php.ini
+sed -i -E "/^php_admin_(flag|value)\[opcache/s/^/;/" /etc/php${PHP_NUM}/php-fpm.d/nextcloud.conf
 msg_ok "Installed Nextcloud"
 
 msg_info "Adding Additional Nextcloud Packages"
@@ -193,10 +201,10 @@ msg_ok "Added Additional Nextcloud Packages"
 msg_info "Starting Services"
 $STD rc-service redis start
 $STD rc-update add redis default
-$STD rc-service php-fpm83 start
+$STD rc-service php-fpm${PHP_NUM} start
 chown -R nextcloud:www-data /var/log/nextcloud/
 chown -R nextcloud:www-data /usr/share/webapps/nextcloud/
-$STD rc-service php-fpm83 restart
+$STD rc-service php-fpm${PHP_NUM} restart
 $STD rc-service nginx start
 $STD rc-service nextcloud start
 $STD rc-update add nginx default
@@ -206,16 +214,16 @@ msg_ok "Started Services"
 msg_info "Start Nextcloud Setup-Wizard"
 echo -e "export VISUAL=nano\nexport EDITOR=nano" >>/etc/profile
 cd /usr/share/webapps/nextcloud
-$STD su nextcloud -s /bin/sh -c "php83 occ maintenance:install \
+$STD su nextcloud -s /bin/sh -c "php${PHP_NUM} occ maintenance:install \
 --database='mysql' --database-name $DB_NAME \
 --database-user '$DB_USER' --database-pass '$DB_PASS' \
 --admin-user '$ADMIN_USER' --admin-pass '$ADMIN_PASS' \
 --data-dir '/var/lib/nextcloud/data'"
-$STD su nextcloud -s /bin/sh -c 'php83 occ background:cron'
+$STD su nextcloud -s /bin/sh -c "php${PHP_NUM} occ background:cron"
 rm -rf /usr/share/webapps/nextcloud/apps/serverinfo
 
 # No need to modify config.php here again, as we've already set trusted domains
-su nextcloud -s /bin/sh -c 'php83 -f /usr/share/webapps/nextcloud/cron.php'
+su nextcloud -s /bin/sh -c "php${PHP_NUM} -f /usr/share/webapps/nextcloud/cron.php"
 msg_ok "Finished Nextcloud Setup-Wizard"
 
 motd_ssh
