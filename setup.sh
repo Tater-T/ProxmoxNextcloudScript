@@ -122,8 +122,11 @@ INNER
 export FUNCTIONS_FILE_PATH="/tmp/functions.sh"
 
 # Ensure PHP config directory exists and nextcloud.conf is created before running the installer
-mkdir -p /etc/php82/php-fpm.d
-cat <<'PHPCONF' > /etc/php82/php-fpm.d/nextcloud.conf
+export PHP_NUM=82
+mkdir -p /etc/php${PHP_NUM}/php-fpm.d
+
+# Create the nextcloud.conf file before trying to modify it
+cat <<'PHPCONF' > /etc/php${PHP_NUM}/php-fpm.d/nextcloud.conf
 [nextcloud]
 php_admin_value[opcache.enable]=1
 php_admin_value[opcache.enable_cli]=1
@@ -135,17 +138,20 @@ PHPCONF
 # Download and run the script
 wget -q https://raw.githubusercontent.com/Tater-T/ProxmoxNextcloudScript/main/ct/alpine-nextcloud.sh -O /tmp/nextcloud-install.sh
 chmod +x /tmp/nextcloud-install.sh
-bash /tmp/nextcloud-install.sh
+
+# Add debug line to verify files exist
+ls -la /etc/php${PHP_NUM}/php-fpm.d/
+
+# Run with bash explicitly
+/usr/bin/bash /tmp/nextcloud-install.sh
 EOF
 
 # Copy wrapper script to container
 pct push $CTID /tmp/nextcloud-wrapper.sh /tmp/nextcloud-wrapper.sh
 pct exec $CTID -- chmod +x /tmp/nextcloud-wrapper.sh
 
-# Set PHP_NUM explicitly to match the installed PHP version
-pct exec $CTID -- bash -c "echo 'export PHP_NUM=82' >> /tmp/nextcloud-wrapper.sh"
-
-pct exec $CTID -- bash /tmp/nextcloud-wrapper.sh
+# Set PHP_NUM explicitly to match the installed PHP version - also adding bash explicitly
+pct exec $CTID -- /usr/bin/bash /tmp/nextcloud-wrapper.sh
 
 msg_ok "Nextcloud installation completed!"
 
